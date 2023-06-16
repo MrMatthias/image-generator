@@ -51,12 +51,12 @@ export default function ImageGenerator() {
       }),
     })
       .then((res) => {
-        if (!res.ok) {
-          throw new Error(res.statusText);
-        }
         return res.json();
       })
       .then((data) => {
+        if (data.error) {
+          throw new Error(data.error);
+        }
         setImage(data);
         addImage(data);
       })
