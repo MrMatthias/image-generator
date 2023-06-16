@@ -12,21 +12,40 @@ const cwd = process.cwd();
 export default async function handler(req, res) {
   switch (req.method) {
     case "GET":
+      const count = await prisma.image.count();
+
+      let page = parseInt(req.query.page);
+      if (isNaN(page)) {
+        page = 1;
+      }
+
+      const take = 21;
+
       const images = await prisma.image.findMany({
+        take,
+        skip: (page - 1) * take,
         orderBy: {
           createdAt: "desc",
         },
       });
-      res.status(200).json(images);
+      res.status(200).json({ take, count, images });
       return;
     case "POST":
       if (!req.body.prompt) {
-        res.status(400).json("Missing prompt");
+        res.status(400).json({ error: "Missing prompt" });
         return;
       }
 
       try {
         const prompt = req.body.prompt;
+
+        const violatesTOS = await classifyContent(prompt);
+
+        if (violatesTOS) {
+          res.status(400).json({ error: "Content violates TOS" });
+          return;
+        }
+
         const url = await createImage(prompt);
         const fileName = await saveImage(url, prompt);
         await createThumb(fileName);
@@ -35,15 +54,14 @@ export default async function handler(req, res) {
         console.log(entry);
         return;
       } catch (err) {
-        console.log(err);
-        res.status(500).json("Something went wrong");
+        res.status(500).json({ error: "Something went wrong" });
         return;
       }
     case "DELETE":
       const id = parseInt(req.query.id);
 
       if (isNaN(id)) {
-        res.status(400).json("Something went wrong");
+        res.status(400).json({ error: "Something went wrong" });
         return;
       }
 
@@ -63,9 +81,24 @@ export default async function handler(req, res) {
       res.status(200).end();
       break;
     default:
-      res.status(405).json("Method not allowed");
+      res.status(405).json({ error: "Method not allowed" });
       break;
   }
+}
+
+async function classifyContent(prompt) {
+  return new Promise(async (resolve, reject) => {
+    const response = await openai.createModeration({
+      input: prompt,
+    });
+
+    if (response.status !== 200) {
+      reject("Something went wrong");
+      return;
+    }
+
+    return resolve(response.data.results[0].flagged);
+  });
 }
 
 async function saveToDatabase(fileName, prompt) {

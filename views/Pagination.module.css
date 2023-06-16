@@ -1,0 +1,15 @@
+.pagination {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  width: 414px;
+}
+
+.pagination a {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.current {
+  font-weight: 700;
+}
